@@ -1,22 +1,19 @@
 import os
 
+import math
+from mpi4py import MPI
 import numpy as np
 import matplotlib.pyplot as plt
 from pynwb import NWBHDF5IO
 
 from miv.core.datatype import Signal, Spikestamps
-from power_density_statistics import (
-    SpectrumAnalysisPeriodogram,
-    SpectrumAnalysisWelch,
-)
 
 file_path = "/Users/aia/Downloads/RecordNode103__experiment1__recording1.nwb"
 
-def lfp_signal_generator(lfp_series):
+def lfp_signal_generator(lfp_series, num_chunks, rank, size):
     sampling_rate = lfp_series.rate
-    num_chunks = lfp_series.data.shape[0]
 
-    for chunk in range(num_chunks):
+    for chunk in range(rank, num_chunks, size):
         lfp_data = lfp_series.data[chunk, :, :]
 
         timestamps = np.linspace(
@@ -32,13 +29,14 @@ def lfp_signal_generator(lfp_series):
         )
 
 
-def spike_train_generator(spike_series, segment_length=60):
+def spike_train_generator(spike_series, num_chunks, rank, size, segment_length=60):
     spike_timestamps = spike_series.timestamps[:]
-    max_time = spike_timestamps.max()
     num_channels = spike_series.data.shape[1]
-    start_time = 0
 
-    while start_time < max_time:
+    print(rank)
+
+    for chunk in range(rank, num_chunks, size):
+        start_time = chunk * segment_length
         end_time = start_time + segment_length
 
         start_idx = np.searchsorted(spike_timestamps, start_time, side="left")
@@ -55,59 +53,61 @@ def spike_train_generator(spike_series, segment_length=60):
 
         yield Spikestamps(time_matrix)
 
-        start_time += segment_length
 
 with NWBHDF5IO(file_path, "r") as io:
     nwbfile = io.read()
-    print("Top-level keys in NWB file:", nwbfile.fields.keys())
-    print("Top-level keys in NWB file:", nwbfile.processing.keys())
-    print("Top-level keys in NWB file:", nwbfile.acquisition.keys())
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
 
-    # print(nwbfile.electrode_groups)
-    # print(nwbfile.electrodes)
-    print(nwbfile.processing)
-
-    # lfp_interface = nwbfile.processing["ecephys"].data_interfaces["LFP"]
-    # lfp_series = lfp_interface.electrical_series["ElectricalSeries"]
-    #
-    # lfp_gen = lfp_signal_generator(lfp_series)
-    #
-    # chunk_limit = 0
-    # channel_limit = 0
-    # chunk = 0
-    #
-    # spectrum_welch = SpectrumAnalysisWelch()
-    # result = spectrum_welch(lfp_gen)
-    #
-    # signal_summary_file_path = "./signal_analysis"
-    # for signal_chunk in lfp_gen:
-    #     for channel in range(channel_limit):
-    #         plt.figure(figsize=(10, 4))
-    #         plt.plot(signal_chunk.timestamps, signal_chunk.data[:, channel])
-    #         plt.title("LFP Signal")
-    #         plt.xlabel("Time (s)")
-    #         plt.ylabel("Amplitude")
-    #         plt.grid()
-    #         plot_path = os.path.join(signal_summary_file_path, f"lfp_figure_chunk{signal_chunk}_channel{channel}.png")
-    #         os.makedirs(signal_summary_file_path, exist_ok=True)
-    #         plt.savefig(plot_path, dpi=300)
-    #         plt.close()
-    #
-    #     chunk += 1
-    #     if chunk == channel_limit:
-    #         break
-
+    # read data
+    lfp_interface = nwbfile.processing["ecephys"].data_interfaces["LFP"]
+    lfp_series = lfp_interface.electrical_series["ElectricalSeries"]
+    num_chunks = lfp_series.data.shape[0]
+    num_channels = lfp_series.data.shape[2]
+    lfp_gen = lfp_signal_generator(lfp_series, num_chunks, rank, size)
 
     spike_series = nwbfile.acquisition["Spike Events"]
-    print(spike_series)
+    spike_gen = spike_train_generator(spike_series, num_chunks, rank, size, segment_length=60)
 
-    spike_gen = spike_train_generator(spike_series)
-    chunk_limit = 2
-    channel_limit = 2
+    chunk_limit = num_chunks
+    channel_limit = num_channels
+    chunk = 0
+
+    signal_summary_file_path = "./signal_analysis"
+
+    while True:
+        signal_chunk = next(lfp_gen)
+        plot_path_chunk = os.path.join(signal_summary_file_path, f"lfp_chunk{chunk * size + rank: 03d}")
+        os.makedirs(plot_path_chunk, exist_ok=True)
+
+        for channel in range(channel_limit):
+            plt.figure(figsize=(10, 4))
+            plt.plot(signal_chunk.timestamps, signal_chunk.data[:, channel])
+            plt.title("LFP Signal")
+            plt.xlabel("Time (s)")
+            plt.ylabel("Amplitude")
+            plt.grid()
+            plot_path_channel = os.path.join(plot_path_chunk, f"lfp_figure_channel{channel}.png")
+            os.makedirs(signal_summary_file_path, exist_ok=True)
+            plt.savefig(plot_path_channel, dpi=300)
+            plt.close()
+
+        chunk += 1
+
+        if chunk == channel_limit:
+            break
+
+
+    chunk_limit = num_chunks
+    channel_limit = num_channels
     chunk = 0
 
     spike_summary_file_path = "./spike_analysis"
-    for spike_chunk in spike_gen:
+    while True:
+        spike_chunk = next(spike_gen)
+        plot_path_chunk = os.path.join(spike_summary_file_path, f"spike_train_chunk{chunk * size + rank}")
+        os.makedirs(plot_path_chunk, exist_ok=True)
         for channel, spike_times in enumerate(spike_chunk):
             y_values = [channel] * len(spike_times)
             plt.scatter(spike_times, y_values, s=1, color="blue")
@@ -116,11 +116,10 @@ with NWBHDF5IO(file_path, "r") as io:
         plt.xlabel("Time (s)")
         plt.ylabel("Channel Index")
         plt.legend(loc='upper right')
-        plot_path = os.path.join(spike_summary_file_path, f"spike_train_chunk{chunk}_all_channels.png")
+        plot_path_channel = os.path.join(plot_path_chunk, f"spike_train_channels.png")
         os.makedirs(spike_summary_file_path, exist_ok=True)
-        plt.savefig(plot_path, dpi=300)
+        plt.savefig(plot_path_channel, dpi=300)
         plt.close()
-
 
         chunk += 1
         if chunk == channel_limit:
