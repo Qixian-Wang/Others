@@ -1,14 +1,16 @@
 import os
 
-import math
 from mpi4py import MPI
 import numpy as np
 import matplotlib.pyplot as plt
 from pynwb import NWBHDF5IO
 
+from miv.datasets.openephys_sample import load_data
 from miv.core.datatype import Signal, Spikestamps
 
-file_path = "/Users/aia/Downloads/RecordNode103__experiment1__recording1.nwb"
+# file_path: str = load_data(progbar_disable=True).data_collection_path
+# file_path = "/Users/aia/Downloads/RecordNode103__experiment1__recording1.nwb"
+file_path = "/scratch1/10197/qxwang/NWB_MPI/RecordNode103__experiment1__recording1.nwb"
 
 def lfp_signal_generator(lfp_series, num_chunks, rank, size):
     sampling_rate = lfp_series.rate
@@ -32,8 +34,6 @@ def lfp_signal_generator(lfp_series, num_chunks, rank, size):
 def spike_train_generator(spike_series, num_chunks, rank, size, segment_length=60):
     spike_timestamps = spike_series.timestamps[:]
     num_channels = spike_series.data.shape[1]
-
-    print(rank)
 
     for chunk in range(rank, num_chunks, size):
         start_time = chunk * segment_length
@@ -60,6 +60,7 @@ with NWBHDF5IO(file_path, "r") as io:
     rank = comm.Get_rank()
     size = comm.Get_size()
 
+    time_start = MPI.Wtime()
     # read data
     lfp_interface = nwbfile.processing["ecephys"].data_interfaces["LFP"]
     lfp_series = lfp_interface.electrical_series["ElectricalSeries"]
@@ -70,15 +71,15 @@ with NWBHDF5IO(file_path, "r") as io:
     spike_series = nwbfile.acquisition["Spike Events"]
     spike_gen = spike_train_generator(spike_series, num_chunks, rank, size, segment_length=60)
 
-    chunk_limit = num_chunks
-    channel_limit = num_channels
-    chunk = 0
+    chunk_limit = 128
+    channel_limit = 30
+    chunk = rank
 
     signal_summary_file_path = "./signal_analysis"
 
-    while True:
+    while chunk < chunk_limit:
         signal_chunk = next(lfp_gen)
-        plot_path_chunk = os.path.join(signal_summary_file_path, f"lfp_chunk{chunk * size + rank: 03d}")
+        plot_path_chunk = os.path.join(signal_summary_file_path, f"lfp_chunk{chunk: 03d}")
         os.makedirs(plot_path_chunk, exist_ok=True)
 
         for channel in range(channel_limit):
@@ -89,24 +90,17 @@ with NWBHDF5IO(file_path, "r") as io:
             plt.ylabel("Amplitude")
             plt.grid()
             plot_path_channel = os.path.join(plot_path_chunk, f"lfp_figure_channel{channel}.png")
-            os.makedirs(signal_summary_file_path, exist_ok=True)
             plt.savefig(plot_path_channel, dpi=300)
             plt.close()
 
-        chunk += 1
+        print(f"lfp: rank {rank} handled chunk {chunk}")
+        chunk += size
 
-        if chunk == channel_limit:
-            break
-
-
-    chunk_limit = num_chunks
-    channel_limit = num_channels
-    chunk = 0
-
+    chunk = rank
     spike_summary_file_path = "./spike_analysis"
-    while True:
+    while chunk < chunk_limit:
         spike_chunk = next(spike_gen)
-        plot_path_chunk = os.path.join(spike_summary_file_path, f"spike_train_chunk{chunk * size + rank}")
+        plot_path_chunk = os.path.join(spike_summary_file_path, f"spike_train_chunk{chunk: 03d}")
         os.makedirs(plot_path_chunk, exist_ok=True)
         for channel, spike_times in enumerate(spike_chunk):
             y_values = [channel] * len(spike_times)
@@ -117,10 +111,16 @@ with NWBHDF5IO(file_path, "r") as io:
         plt.ylabel("Channel Index")
         plt.legend(loc='upper right')
         plot_path_channel = os.path.join(plot_path_chunk, f"spike_train_channels.png")
-        os.makedirs(spike_summary_file_path, exist_ok=True)
         plt.savefig(plot_path_channel, dpi=300)
         plt.close()
 
-        chunk += 1
-        if chunk == channel_limit:
-            break
+        print(f"spike: rank {rank} handled chunk {chunk}")
+        chunk += size
+
+    comm.barrier()
+    if rank == 0:
+        time_end = MPI.Wtime()
+        time = time_end - time_start
+        summary_file_path = os.path.join('/scratch1/10197/qxwang/NWB_MPI/', 'summary.txt')
+        with open(summary_file_path, 'w') as summary_file:
+            summary_file.write(f"data processing time: {time}\n")
