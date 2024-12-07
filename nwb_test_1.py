@@ -1,16 +1,15 @@
 import os
 
+import shutil
+import zipfile
 from mpi4py import MPI
+from pynwb import NWBHDF5IO
 import numpy as np
 import matplotlib.pyplot as plt
 from pynwb import NWBHDF5IO
 
 from miv.datasets.openephys_sample import load_data
 from miv.core.datatype import Signal, Spikestamps
-
-# file_path: str = load_data(progbar_disable=True).data_collection_path
-# file_path = "/Users/aia/Downloads/RecordNode103__experiment1__recording1.nwb"
-file_path = "/scratch1/10197/qxwang/NWB_MPI/RecordNode103__experiment1__recording1.nwb"
 
 def lfp_signal_generator(lfp_series, num_chunks, rank, size):
     sampling_rate = lfp_series.rate
@@ -53,12 +52,27 @@ def spike_train_generator(spike_series, num_chunks, rank, size, segment_length=6
 
         yield Spikestamps(time_matrix)
 
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
 
-with NWBHDF5IO(file_path, "r") as io:
+local_tmp_dir = f"/tmp/data_rank_{rank}"
+os.makedirs(local_tmp_dir, exist_ok=True)
+shared_data_path = "/scratch1/10197/qxwang/NWB_MPI/RecordNode103__experiment1__recording1.nwb"
+local_data_path = os.path.join(local_tmp_dir, "recording1.nwb")
+shutil.copy(shared_data_path, local_data_path)
+
+plot_tmp_dir = f"/tmp/plots_rank_{rank}"
+os.makedirs(plot_tmp_dir, exist_ok=True)
+
+final_gather_dir = "/tmp/all_plots_gathered"
+final_output_dir = "/scratch1/10197/qxwang/NWB_MPI/zip_plot_file"
+os.makedirs(final_output_dir, exist_ok=True)
+
+comm.Barrier()
+
+with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
     nwbfile = io.read()
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
 
     time_start = MPI.Wtime()
     # read data
@@ -71,15 +85,15 @@ with NWBHDF5IO(file_path, "r") as io:
     spike_series = nwbfile.acquisition["Spike Events"]
     spike_gen = spike_train_generator(spike_series, num_chunks, rank, size, segment_length=60)
 
-    chunk_limit = 128
-    channel_limit = 30
+    chunk_limit = 5
+    channel_limit = 5
     chunk = rank
 
     signal_summary_file_path = "./signal_analysis"
 
     while chunk < chunk_limit:
         signal_chunk = next(lfp_gen)
-        plot_path_chunk = os.path.join(signal_summary_file_path, f"lfp_chunk{chunk: 03d}")
+        plot_path_chunk = os.path.join(plot_tmp_dir, f"lfp_chunk{chunk: 03d}")
         os.makedirs(plot_path_chunk, exist_ok=True)
 
         for channel in range(channel_limit):
@@ -100,7 +114,7 @@ with NWBHDF5IO(file_path, "r") as io:
     spike_summary_file_path = "./spike_analysis"
     while chunk < chunk_limit:
         spike_chunk = next(spike_gen)
-        plot_path_chunk = os.path.join(spike_summary_file_path, f"spike_train_chunk{chunk: 03d}")
+        plot_path_chunk = os.path.join(plot_tmp_dir, f"spike_train_chunk{chunk: 03d}")
         os.makedirs(plot_path_chunk, exist_ok=True)
         for channel, spike_times in enumerate(spike_chunk):
             y_values = [channel] * len(spike_times)
@@ -124,3 +138,30 @@ with NWBHDF5IO(file_path, "r") as io:
         summary_file_path = os.path.join('/scratch1/10197/qxwang/NWB_MPI/', 'summary.txt')
         with open(summary_file_path, 'w') as summary_file:
             summary_file.write(f"data processing time: {time}\n")
+
+    comm.Barrier()
+
+    if rank == 0:
+        os.makedirs(final_gather_dir, exist_ok=True)
+
+    comm.Barrier()
+
+    if rank != 0:
+        shutil.copytree(plot_tmp_dir, os.path.join(final_gather_dir, f"rank_{rank}"))
+        print(f"Rank {rank}: Files sent to master node")
+    else:
+        shutil.copytree(plot_tmp_dir, os.path.join(final_gather_dir, f"rank_{rank}"))
+
+    comm.Barrier()
+
+    if rank == 0:
+        zip_file_path = os.path.join(final_output_dir, "plots_gathered.zip")
+        with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(final_gather_dir):
+                for file in files:
+                    zipf.write(os.path.join(root, file),
+                               arcname=os.path.relpath(os.path.join(root, file), final_gather_dir))
+        print(f"Master node: All plots compressed to {zip_file_path}")
+
+    shutil.rmtree(local_tmp_dir)
+    shutil.rmtree(plot_tmp_dir)
