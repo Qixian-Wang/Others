@@ -52,16 +52,20 @@ def spike_train_generator(spike_series, num_chunks, rank, size, segment_length=6
 
         yield Spikestamps(time_matrix)
 
+
+
+local_tmp_dir = f"/tmp/data_rank"
+os.makedirs(local_tmp_dir, exist_ok=True)
+data_path = "/scratch1/10197/qxwang/NWB_MPI/RecordNode103__experiment1__recording1.nwb"
+local_data_path = os.path.join(local_tmp_dir, "recording1.nwb")
+shutil.copy(data_path, local_data_path)
+
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-local_tmp_dir = f"/tmp/data_rank_{rank}"
-os.makedirs(local_tmp_dir, exist_ok=True)
-# shared_data_path = "/Users/aia/Downloads/RecordNode103__experiment1__recording1.nwb"
-data_path = "/scratch1/10197/qxwang/NWB_MPI/RecordNode103__experiment1__recording1.nwb"
-
 plot_tmp_dir = f"/tmp/plots_rank_{rank}"
+print(rank)
 os.makedirs(plot_tmp_dir, exist_ok=True)
 
 final_gather_dir = "/tmp/all_plots_gathered"
@@ -70,7 +74,7 @@ os.makedirs(final_output_dir, exist_ok=True)
 
 comm.Barrier()
 
-with NWBHDF5IO(data_path, mode="r", comm=comm) as io:
+with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
     nwbfile = io.read()
 
     time_start = MPI.Wtime()
@@ -86,7 +90,6 @@ with NWBHDF5IO(data_path, mode="r", comm=comm) as io:
 
     chunk_limit = num_chunks
     channel_limit = num_channels
-    print(chunk_limit)
     chunk = rank
 
     signal_summary_file_path = "./signal_analysis"
