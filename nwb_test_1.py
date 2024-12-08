@@ -65,7 +65,6 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 plot_tmp_dir = f"/tmp/plots_rank_{rank}"
-print(rank)
 os.makedirs(plot_tmp_dir, exist_ok=True)
 
 final_gather_dir = "/tmp/all_plots_gathered"
@@ -92,8 +91,6 @@ with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
     channel_limit = num_channels
     chunk = rank
 
-    signal_summary_file_path = "./signal_analysis"
-
     while chunk < chunk_limit:
         signal_chunk = next(lfp_gen)
         plot_path_chunk = os.path.join(plot_tmp_dir, f"lfp_chunk{chunk: 03d}")
@@ -110,11 +107,11 @@ with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
             plt.savefig(plot_path_channel, dpi=300)
             plt.close()
 
+        print(signal_chunk.data.shape)
         print(f"lfp: rank {rank} handled chunk {chunk}")
         chunk += size
 
     chunk = rank
-    spike_summary_file_path = "./spike_analysis"
     while chunk < chunk_limit:
         spike_chunk = next(spike_gen)
         plot_path_chunk = os.path.join(plot_tmp_dir, f"spike_train_chunk{chunk: 03d}")
@@ -126,7 +123,6 @@ with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
         plt.title(f"Spike Train - All Channels (Chunk {chunk})")
         plt.xlabel("Time (s)")
         plt.ylabel("Channel Index")
-        plt.legend(loc='upper right')
         plot_path_channel = os.path.join(plot_path_chunk, f"spike_train_channels.png")
         plt.savefig(plot_path_channel, dpi=300)
         plt.close()
@@ -134,37 +130,37 @@ with NWBHDF5IO(local_data_path, mode="r", comm=comm) as io:
         print(f"spike: rank {rank} handled chunk {chunk}")
         chunk += size
 
-    comm.barrier()
-    if rank == 0:
-        time_end = MPI.Wtime()
-        time = time_end - time_start
-        summary_file_path = os.path.join('/scratch1/10197/qxwang/NWB_MPI/', 'summary.txt')
-        with open(summary_file_path, 'w') as summary_file:
-            summary_file.write(f"data processing time: {time}\n")
+comm.barrier()
+if rank == 0:
+    time_end = MPI.Wtime()
+    time = time_end - time_start
+    summary_file_path = os.path.join('/scratch1/10197/qxwang/NWB_MPI/', 'summary.txt')
+    with open(summary_file_path, 'w') as summary_file:
+        summary_file.write(f"data processing time: {time}\n")
 
-    comm.Barrier()
+comm.Barrier()
+procs_per_node = size // 18
+is_node_master = (rank % procs_per_node == 0)
 
-    if rank == 0:
-        os.makedirs(final_gather_dir, exist_ok=True)
+if is_node_master:
+    os.makedirs(final_gather_dir, exist_ok=True)
+    shutil.copytree(plot_tmp_dir, os.path.join(final_gather_dir, f"rank_{rank}"))
+else:
+    path_local = os.path.join(final_gather_dir, f"rank_{rank}")
+    shutil.copytree(plot_tmp_dir, path_local)
 
-    comm.Barrier()
+comm.Barrier()
 
-    if rank != 0:
-        shutil.copytree(plot_tmp_dir, os.path.join(final_gather_dir, f"rank_{rank}"))
-        print(f"Rank {rank}: Files sent to master node")
-    else:
-        shutil.copytree(plot_tmp_dir, os.path.join(final_gather_dir, f"rank_{rank}"))
+if is_node_master:
 
-    comm.Barrier()
+    zip_file_path = os.path.join(final_output_dir, f"plots_gathered_rank{rank}.zip")
+    file_count = 0
+    with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(final_gather_dir):
+            for file in files:
+                zipf.write(os.path.join(root, file),
+                           arcname=os.path.relpath(os.path.join(root, file), final_gather_dir))
+                file_count += 1
+    print(f"Master node: All plots compressed to {zip_file_path}")
+    print(f"Total files saved and compressed: {file_count}")
 
-    if rank == 0:
-        zip_file_path = os.path.join(final_output_dir, "plots_gathered.zip")
-        with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(final_gather_dir):
-                for file in files:
-                    zipf.write(os.path.join(root, file),
-                               arcname=os.path.relpath(os.path.join(root, file), final_gather_dir))
-        print(f"Master node: All plots compressed to {zip_file_path}")
-
-    shutil.rmtree(local_tmp_dir)
-    shutil.rmtree(plot_tmp_dir)
