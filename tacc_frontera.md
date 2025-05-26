@@ -1,22 +1,18 @@
 # TACC-Frontera
-
-- [Build Virtualenv Environment ](#build-virtualenv-environment )
-- [Common Commands](#common-commands)
-- [Job Script Example](#job-script-example)
-- [Horovod Gloo](#horovod_gloo)
-- [Dataset and Transfer files](#dataset-and-transfer-files)
-- [Large Scale Experiment](#large-scale-experiment)
-- [DALI](#dali)
-- [Potential Error](#potential-error)
-- [Question Ticket](#question-ticket)
 ## Build Virtualenv Environment 
 
-According to the TACC staff's personal instruction, we should **use Python virtualenv instead of Conda** to build the environment on TACC-Frontera. 
+virtualenv seems to be a easier way to create virtual env here.
+Main website:
+```shell
+Portal:
+https://frontera-portal.tacc.utexas.edu/
+Dashboard:
+https://frontera-portal.tacc.utexas.edu/workbench/dashboard
+```
+Store your large files in scratch, not home and work.
+<img width="208" alt="Screenshot 2025-05-25 at 9 41 13 PM" src="https://github.com/user-attachments/assets/26c1b452-205f-41cd-ba8b-22a3d32eb602" />
 
 ```shell
-# interactive usage
-idev -p rtx-dev -N 1 -n 4 -t 02:00:00
-
 # bulid Python virtualenv
 cd ~
 mkdir python-env
