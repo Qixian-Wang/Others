@@ -83,6 +83,7 @@ Example:
 
 Then go to cloud storage to add files:
 <img width="767" height="445" alt="image" src="https://github.com/user-attachments/assets/3e99da68-f6af-466d-9302-b6a5c7392339" />
+
 **Don't upload files via inport, which will be tricky to share.**
 
 # Third: Sharing files.
