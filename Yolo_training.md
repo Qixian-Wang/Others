@@ -140,36 +140,26 @@ def replace_paths_in_string(content, d_param):
     return re.sub(pattern, replace_match, content)
 
 
-def main():
-    # Path
-    input_path = "Path/to/Image/Folder/in/Your/Export"
-    output_path = "output.json"
-    file_name = "lab_tool_data%5C"
+input_path = "project-1-at-2025-07-19-12-11-4b8fdaf6.json"
+output_path = "output.json"
+file_name = "lab_tool_data%5C"
 
-    if not os.path.isfile(input_path):
-        print(f"Error: Input file '{input_path}' not found.")
-        return
+# Copy file
+shutil.copy2(input_path, output_path)
+print(f"Input file copied to: {output_path}")
 
-    # Copy file
-    shutil.copy2(input_path, output_path)
-    print(f"Input file copied to: {output_path}")
+# Read file
+with open(output_path, "r", encoding="utf-8") as outfile:
+    content = outfile.read()
 
-    # Read file
-    with open(output_path, "r", encoding="utf-8") as outfile:
-        content = outfile.read()
+# Replace paths
+updated_content = replace_paths_in_string(content, file_name)
 
-    # Replace paths
-    updated_content = replace_paths_in_string(content, file_name)
+# Write file
+with open(output_path, "w", encoding="utf-8") as outfile:
+    outfile.write(updated_content)
 
-    # Write file
-    with open(output_path, "w", encoding="utf-8") as outfile:
-        outfile.write(updated_content)
-
-    print(f"Addresses updated in: {output_path}")
-
-
-if __name__ == "__main__":
-    main()
+print(f"Addresses updated in: {output_path}")
 ```
 
 This should make it possible to share figures.
