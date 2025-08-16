@@ -18,6 +18,10 @@ When you first create env:
 cd ~
 # This means you will create your env in home directory.
 
+# Create vertual environment
+To create virtual env, `virtualenv` is easier to use, but if python on Frontera is too low (3.9.2), then use conda to create is better.
+
+**If use virtualenv**
 mkdir python-env
 cd python-env
 
@@ -28,7 +32,26 @@ virtualenv miv_env
 source ~/python-env/miv_env/bin/activate
 
 # deactivate environment
-deactivate　
+deactivate
+
+**If use conda**
+First download conda:
+```shell
+curl -L -o Miniforge3.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+```
+
+Then install it:
+```shell
+bash Miniforge3.sh -b -p conda/miniforge3
+```
+
+Activate conda this way:
+```shell
+source conda/miniforge3/etc/profile.d/conda.sh
+```
+
+Then you can create env and define python version
+
 
 # you can use pip to install packages
 ```
@@ -52,6 +75,27 @@ pip install MiV-OS
 cd /your/path/to/jobscript/
 sbatch jobscript.txt # <-change this to your job script's name
 ```
+**If you want to compile miv-os locally.
+First do:
+```shell
+git clone https://github.com/GazzolaLab/MiV-OS
+```
+
+Then go to this directory, use conda env and load higher gcc.
+```shell
+module load gcc/13.2.0
+```
+
+You can confirm gcc version by:
+```shell
+export CC=$(which gcc)
+export CXX=$(which g++)
+
+echo $CC
+echo $CXX
+```
+Then install miv-os
+
 
 ## Common Commands
 
