@@ -21,7 +21,7 @@ cd ~
 ## Create vertual environment
 To create virtual env, `virtualenv` is easier to use, but if python on Frontera is too low (3.9.2), then use `conda` to create is better.
 
-**If use virtualenv**
+### If use virtualenv
 ```shell
 mkdir python-env
 
