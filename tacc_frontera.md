@@ -21,7 +21,7 @@ cd ~
 # Create vertual environment
 To create virtual env, `virtualenv` is easier to use, but if python on Frontera is too low (3.9.2), then use conda to create is better.
 
-**If use virtualenv**
+#If use virtualenv#
 mkdir python-env
 cd python-env
 
@@ -34,7 +34,7 @@ source ~/python-env/miv_env/bin/activate
 # deactivate environment
 deactivate
 
-**If use conda**
+#If use conda#
 First download conda:
 ```shell
 curl -L -o Miniforge3.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
