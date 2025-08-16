@@ -37,7 +37,7 @@ source ~/python-env/miv_env/bin/activate
 deactivate
 ```
 
-## If use conda
+### If use conda
 First download conda:
 
 ```shell
