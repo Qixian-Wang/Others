@@ -18,8 +18,8 @@ cd ~
 # This means you will create your env in home directory.
 ```
 
-# Create vertual environment
-To create virtual env, `virtualenv` is easier to use, but if python on Frontera is too low (3.9.2), then use conda to create is better.
+## Create vertual environment
+To create virtual env, `virtualenv` is easier to use, but if python on Frontera is too low (3.9.2), then use `conda` to create is better.
 
 **If use virtualenv**
 ```shell
@@ -37,7 +37,7 @@ source ~/python-env/miv_env/bin/activate
 deactivate
 ```
 
-# If use conda
+## If use conda
 First download conda:
 
 ```shell
@@ -57,7 +57,7 @@ source conda/miniforge3/etc/profile.d/conda.sh
 Then you can create env and define python version
 
 
-# you can use pip to install packages
+## You can use pip to install packages
 ```
 Install MiV-os:
 ```shall
