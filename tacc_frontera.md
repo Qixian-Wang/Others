@@ -79,7 +79,8 @@ pip install MiV-OS
 cd /your/path/to/jobscript/
 sbatch jobscript.txt # <-change this to your job script's name
 ```
-**If you want to compile miv-os locally.
+**If you want to compile miv-os locally**
+
 First do:
 ```shell
 git clone https://github.com/GazzolaLab/MiV-OS
