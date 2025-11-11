@@ -5,6 +5,7 @@
 -Bake 60 for 2mins, 110 for 50s
 
 ### First Lithography
+When loading new gds design, do review and select exposure mode: ##fast##
 1. Laser 375nm, dose 210, click box "expose with subtrate angle"
 2. Develop 30s using AZ400K 1:4
 3. Bake 110 for 50s
@@ -24,4 +25,6 @@ Before it: 1. Check Ti and Pt are available; 2. bring metal plates.
 2. Follow SOP to operate. Recipe: SiN-HF/LF low stress new.
 3. Two epochs, 5 mins rest in between.
 
-### 
+### Second Lithography
+1. Create one empty layer, in the second layer, load the pattern
+2. 
