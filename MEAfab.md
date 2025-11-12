@@ -29,3 +29,10 @@ Before it: 1. Check Ti and Pt are available; 2. bring metal plates.
 1. Create one empty layer, in the second layer, load the pattern
 2. Dose 210
 The side facing the left in the machine is the bottom side in gds file.
+Other are the same as first lithography
+
+### RIE
+Bring multimeter
+1. Login as: ID: **SU** Pass: **Self**, so we can edit recipe
+2. Use *ZS SIN*, which is:CF4:20; Ar:5; CHF3:15; Init Pres:4; RF Power:150; Process: 10mins each, 3 epochs.
+
